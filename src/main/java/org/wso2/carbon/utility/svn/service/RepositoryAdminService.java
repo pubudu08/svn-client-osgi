@@ -1,7 +1,5 @@
 package org.wso2.carbon.utility.svn.service;
 
-import java.net.MalformedURLException;
-
 import org.tigris.subversion.svnclientadapter.ISVNClientAdapter;
 import org.tigris.subversion.svnclientadapter.ISVNInfo;
 import org.tigris.subversion.svnclientadapter.SVNClientAdapterFactory;
@@ -9,97 +7,82 @@ import org.tigris.subversion.svnclientadapter.SVNClientException;
 import org.tigris.subversion.svnclientadapter.SVNUrl;
 import org.tigris.subversion.svnclientadapter.commandline.CmdLineClientAdapterFactory;
 import org.tigris.subversion.svnclientadapter.svnkit.SvnKitClientAdapterFactory;
-import org.wso2.carbon.utility.versioncontrol.IRepository;
+import org.wso2.carbon.utility.versioncontrol.VersionControlArtifact;
+import org.wso2.carbon.utility.versioncontrol.exception.GenericArtifactException;
+
+import java.net.MalformedURLException;
 
 
-public class RepositoryAdminService implements IRepository {
+public class RepositoryAdminService implements VersionControlArtifact {
 
-	
-	public boolean createRepository(String username, String password, String repositoryPath){
+	/**
+	 * Create SVN repository.
+	 *
+	 * @param username
+	 * @param password
+	 * @param repositoryPath
+	 */
+	public void createRepository(String username, String password, String repositoryPath)
+	  throws GenericArtifactException {
+		SVNUrl url;
+		String clientType;
+		ISVNClientAdapter svnClient;
+		ISVNInfo info;
+
 		try {
-            SvnKitClientAdapterFactory.setup();
-        } catch (Throwable t) {}
-		
+			SvnKitClientAdapterFactory.setup();
+		} catch (SVNClientException exception) {
+			throw new GenericArtifactException(
+			  "SVN Client Adaptor Connection Failed", exception,
+			  "Connection_Failed_On_SVN_Client_Adaptor");
+		}
 		try {
-            CmdLineClientAdapterFactory.setup();
-        } catch (Throwable t) {}
-		
-		SVNUrl url = null;
+			CmdLineClientAdapterFactory.setup();
+		} catch (SVNClientException exception) {
+			throw new GenericArtifactException(
+			  "CmdLineClientAdapterFactory Connection Failed", exception,
+			  "Connection_Failed_On_CmdLineClientAdapterFactory");
+		}
 		try {
 			url = new SVNUrl(repositoryPath);
-		} catch (MalformedURLException e) {
-			return false;
+		} catch (MalformedURLException exception) {
+			throw new GenericArtifactException(
+			  "Invalid SVN URL", exception, "Invalid_SVN_URL");
 		}
-		
-		String clientType = null;
 		try {
-            clientType = SVNClientAdapterFactory.getPreferredSVNClientType();
-        } catch (SVNClientException e) {
-        	return false;
-        }
-		
-		ISVNClientAdapter svnClient = SVNClientAdapterFactory.createSVNClient(clientType);
-        svnClient.setUsername(username);
-        svnClient.setPassword(password);        
-        try {
+			clientType = SVNClientAdapterFactory.getPreferredSVNClientType();
+		} catch (SVNClientException exception) {
+			throw new GenericArtifactException(
+			  "SVN Preferred Client type error, Failed to retrieve SVN PreferredClientType ",
+			  exception, "Connection_Failed_On_CmdLineClientAdapterFactory");
 
-            ISVNInfo info = svnClient.getInfo(url);
-            if (info != null) {
-                return false;
-            }
-        } catch (SVNClientException ex) {
-            try {
-                svnClient.mkdir(url, true, "Directory creation by deployment synchronizer");
-                return true;
-            } catch (SVNClientException e) {
-            	return false;
-            }
-        }
-        return false;
-		
-	}
-	
-	public boolean isRepositoryExist(String username, String password, String repositoryPath){
-		try {
-            SvnKitClientAdapterFactory.setup();
-        } catch (Throwable t) {}
-		
-		try {
-            CmdLineClientAdapterFactory.setup();
-        } catch (Throwable t) {}
-		
-		SVNUrl url = null;
-		try {
-			url = new SVNUrl(repositoryPath);
-		} catch (MalformedURLException e) {
-			return false;
 		}
-		
-		String clientType = null;
+		svnClient = SVNClientAdapterFactory.createSVNClient(clientType);
+		svnClient.setUsername(username);
+		svnClient.setPassword(password);
 		try {
-            clientType = SVNClientAdapterFactory.getPreferredSVNClientType();
-        } catch (SVNClientException e) {
-        	return false;
-        }
-		
-		ISVNClientAdapter svnClient = SVNClientAdapterFactory.createSVNClient(clientType);
-		if(username != null){
-			svnClient.setUsername(username);
-	        svnClient.setPassword(password); 
+			info = svnClient.getInfo(url);
+		} catch (SVNClientException exception) {
+			throw new GenericArtifactException(
+			  "Invalid SVN repository URL", exception, "Invalid SVN Repository URL");
 		}
-               
-        try {
 
-            ISVNInfo info = svnClient.getInfo(url);
-            if (info != null) {
-                return true;
-            }
-        } catch (SVNClientException ex) {
-            return false;
-        }
-        return false;
+		if (info != null) {
+			throw new GenericArtifactException(
+			  "Project is already exists, Please provide" +
+			  "a suitable project name. ", "Project_Already_Exists");
+		} else {
+			try {
+				if (svnClient != null) {
+					svnClient.mkdir(url, true, "Directory creation by deployment synchronizer");
+				}
+			} catch (SVNClientException exception) {
+				throw new GenericArtifactException(
+				  "Failed to create the repository", exception, "Failed_To_Create_Repository");
+			}
+		}
 	}
-	
+
 	public String getRepositoryType() {
 		return "svn";
 	}
